@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SocketGateway } from './socket.gateway';
 import { SocketService } from './socket.service';
+import { MatchGateway } from './redis/match.gateway';
+import { RedisSubscriberService } from './redis/redis-subscriber.service';
 
 @Module({
   imports: [
@@ -19,7 +21,7 @@ import { SocketService } from './socket.service';
 
     // Socket modules will be added here
   ],
-  providers: [SocketGateway, SocketService],
+  providers: [SocketGateway, SocketService, MatchGateway, RedisSubscriberService],
 })
 export class SocketServiceModule {}
 

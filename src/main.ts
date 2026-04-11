@@ -10,12 +10,12 @@ async function bootstrap() {
 
   // CORS configuration
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: true,
     credentials: true,
   });
 
   const port = process.env.PORT || 3002;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   
   console.log(`🔌 Socket Service is running on: http://localhost:${port}`);
 }

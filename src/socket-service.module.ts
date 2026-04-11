@@ -16,12 +16,12 @@ import { RedisSubscriberService } from './redis/redis-subscriber.service';
 
     // Database (for reading match data)
     MongooseModule.forRoot(
-      process.env.MONGODB_URI || 'mongodb://localhost:27017/cricket_db',
+      process.env.MONGODB_URL || 'mongodb://localhost:27017/cricket_db',
     ),
 
     // Socket modules will be added here
   ],
   providers: [SocketGateway, SocketService, MatchGateway, RedisSubscriberService],
 })
-export class SocketServiceModule {}
+export class SocketServiceModule { }
 

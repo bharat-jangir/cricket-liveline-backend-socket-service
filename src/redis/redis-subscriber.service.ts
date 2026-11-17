@@ -183,6 +183,7 @@ export type CommentaryHandler = (payload: CommentaryPayload) => void;
 export type InningChangeHandler = (payload: InningChangePayload) => void;
 export type OddsSessionHandler = (payload: OddsSessionPayload) => void;
 export type PowerplayUpdateHandler = (payload: PowerplayUpdatePayload) => void;
+export type SessionsTableHandler = (payload: { matchId: string; sessions: any[]; timestamp: Date }) => void;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Service
@@ -202,6 +203,9 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
   private inningChangeHandler: InningChangeHandler;
   private oddsSessionHandler: OddsSessionHandler;
   private powerplayUpdateHandler: PowerplayUpdateHandler;
+  private sessionsTableHandler: SessionsTableHandler;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private subscribed = false;
 
   constructor() {
     this.client = createClient({
@@ -257,6 +261,10 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
     this.powerplayUpdateHandler = handler;
   }
 
+  setSessionsTableHandler(handler: SessionsTableHandler) {
+    this.sessionsTableHandler = handler;
+  }
+
   /** @deprecated Use setMatchUpdateHandler */
   setMessageHandler(handler: MatchUpdateHandler) {
     this.setMatchUpdateHandler(handler);
@@ -270,11 +278,20 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
 
   private async connect() {
     try {
-      await this.client.connect();
-      await this.subscribeToChannels();
+      if (!this.client.isOpen) {
+        await this.client.connect();
+      }
+      if (!this.subscribed) {
+        await this.subscribeToChannels();
+      }
     } catch (error) {
       this.logger.error('Failed to connect to Redis:', error);
-      setTimeout(() => this.connect(), 5000);
+      if (!this.reconnectTimer) {
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null;
+          this.connect();
+        }, 5000);
+      }
     }
   }
 
@@ -315,6 +332,17 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
         this.handlePowerplayUpdate(message);
       });
 
+      // Per-match sessions table  →  match:{matchId}:sessions
+      await this.client.pSubscribe('match:*:sessions', (message) => {
+        try {
+          const payload = JSON.parse(message);
+          this.sessionsTableHandler?.(payload);
+        } catch (error) {
+          this.logger.error('Failed to process sessions table update:', error);
+        }
+      });
+
+      this.subscribed = true;
       this.logger.log('Subscribed to all Redis channels');
     } catch (error) {
       this.logger.error('Failed to subscribe to Redis channels:', error);
@@ -408,7 +436,8 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    if (this.isConnected) {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.client.isOpen) {
       await this.client.quit();
     }
   }

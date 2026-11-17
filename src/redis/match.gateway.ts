@@ -19,10 +19,15 @@ import {
 } from './redis-subscriber.service';
 
 const LISTING_ROOM = 'live-matches';
+const OBJECT_ID_RE = /^[0-9a-fA-F]{24}$/;
+const allowedOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.FRONTEND_URL || '*',
+    origin: allowedOrigins.length ? allowedOrigins : '*',
     credentials: true,
   },
   namespace: '/live',
@@ -62,6 +67,11 @@ export class MatchGateway implements OnGatewayConnection, OnGatewayDisconnect, O
     // ── match:*:powerplay → powerplay_update ────────────────────────────────────
     this.redisSubscriber.setPowerplayUpdateHandler((payload) => {
       this.emitToMatchRoom(payload.matchId, 'powerplay_update', payload);
+    });
+
+    // ── match:*:sessions → sessions_table_update ─────────────────────────────
+    this.redisSubscriber.setSessionsTableHandler((payload) => {
+      this.emitToMatchRoom(payload.matchId, 'sessions_table_update', payload);
     });
 
     // ── live-match:listing → listing_update ───────────────────────────────
@@ -113,7 +123,11 @@ export class MatchGateway implements OnGatewayConnection, OnGatewayDisconnect, O
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { matchId: string },
   ) {
-    const { matchId } = data;
+    const matchId = data?.matchId;
+    if (typeof matchId !== 'string' || !OBJECT_ID_RE.test(matchId)) {
+      client.emit('match_joined', { matchId, success: false, error: 'Invalid matchId' });
+      return;
+    }
 
     // Leave previous match room if switching
     const prevMatchId = this.clientMatchMap.get(client.id);
@@ -134,7 +148,8 @@ export class MatchGateway implements OnGatewayConnection, OnGatewayDisconnect, O
     @ConnectedSocket() client: Socket,
     @MessageBody() data: { matchId: string },
   ) {
-    const { matchId } = data;
+    const matchId = data?.matchId;
+    if (typeof matchId !== 'string') return;
     client.leave(`match:${matchId}`);
     this.clientMatchMap.delete(client.id);
 

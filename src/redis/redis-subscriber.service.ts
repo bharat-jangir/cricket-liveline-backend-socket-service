@@ -17,7 +17,7 @@ export interface MatchUpdatePayload {
   matchId: string;
   type: 'BALL' | 'WICKET' | 'OVER_END' | 'MATCH_RESET';
   timestamp: Date;
-  
+
   // Root-level generalized fields (for scoreUpdate)
   score?: string;
   overs?: string | number;
@@ -74,6 +74,8 @@ export interface MatchUpdatePayload {
   requiredRuns?: number;
   remainingBalls?: number;
   recentBalls?: any[];
+  powerPlay?: boolean;
+  speech?: boolean;
 }
 
 export interface InningChangePayload {
@@ -101,7 +103,14 @@ export interface OddsSessionPayload {
 export interface PowerplayUpdatePayload {
   matchId: string;
   powerplayOvers?: string;
+  powerPlay?: boolean;
   onOC?: boolean;
+  timestamp: Date;
+}
+
+export interface SessionsTablePayload {
+  matchId: string;
+  sessions: any[];
   timestamp: Date;
 }
 
@@ -156,6 +165,8 @@ export interface ScorecardDeltaPayload {
 
 export interface CommentaryPayload {
   matchId: string;
+  inningId: string;
+  onOc?: boolean;
   inningNumber: number;
   overNumber: number;
   ballLabel: string;
@@ -432,6 +443,18 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
       }
     } catch (error) {
       this.logger.error('Failed to process powerplay update:', error);
+    }
+  }
+
+  private handleSessionsTable(message: string) {
+    try {
+      const payload: SessionsTablePayload = JSON.parse(message);
+      this.logger.debug(`[sessions] matchId=${payload.matchId}`);
+      if (this.sessionsTableHandler) {
+        this.sessionsTableHandler(payload);
+      }
+    } catch (error) {
+      this.logger.error('Failed to process sessions table update:', error);
     }
   }
 

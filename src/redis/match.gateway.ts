@@ -70,6 +70,7 @@ export class MatchGateway implements OnGatewayConnection, OnGatewayDisconnect, O
     });
 
     // ── match:*:sessions → sessions_table_update ─────────────────────────────
+    // ── match:*:sessions → sessions_table_update ────────────────────────────────
     this.redisSubscriber.setSessionsTableHandler((payload) => {
       this.emitToMatchRoom(payload.matchId, 'sessions_table_update', payload);
     });
@@ -138,9 +139,10 @@ export class MatchGateway implements OnGatewayConnection, OnGatewayDisconnect, O
 
     client.join(`match:${matchId}`);
     this.clientMatchMap.set(client.id, matchId);
+    this.logger.log(`Client ${client.id} joined match room: match:${matchId}`);
 
-    this.logger.log(`Client ${client.id} joined match:${matchId}`);
-    client.emit('match_joined', { matchId, success: true });
+    // Send acknowledgement
+    client.emit('joined_match', { matchId, status: 'success' });
   }
 
   @SubscribeMessage('leave_match')

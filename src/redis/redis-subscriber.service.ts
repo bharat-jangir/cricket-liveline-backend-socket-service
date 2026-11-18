@@ -74,6 +74,8 @@ export interface MatchUpdatePayload {
   requiredRuns?: number;
   remainingBalls?: number;
   recentBalls?: any[];
+  powerPlay?: boolean;
+  speech?: boolean;
 }
 
 export interface InningChangePayload {
@@ -101,7 +103,14 @@ export interface OddsSessionPayload {
 export interface PowerplayUpdatePayload {
   matchId: string;
   powerplayOvers?: string;
+  powerPlay?: boolean;
   onOC?: boolean;
+  timestamp: Date;
+}
+
+export interface SessionsTablePayload {
+  matchId: string;
+  sessions: any[];
   timestamp: Date;
 }
 
@@ -156,6 +165,8 @@ export interface ScorecardDeltaPayload {
 
 export interface CommentaryPayload {
   matchId: string;
+  inningId: string;
+  onOc?: boolean;
   inningNumber: number;
   overNumber: number;
   ballLabel: string;
@@ -183,6 +194,7 @@ export type CommentaryHandler = (payload: CommentaryPayload) => void;
 export type InningChangeHandler = (payload: InningChangePayload) => void;
 export type OddsSessionHandler = (payload: OddsSessionPayload) => void;
 export type PowerplayUpdateHandler = (payload: PowerplayUpdatePayload) => void;
+export type SessionsTableHandler = (payload: SessionsTablePayload) => void;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Service
@@ -202,6 +214,7 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
   private inningChangeHandler: InningChangeHandler;
   private oddsSessionHandler: OddsSessionHandler;
   private powerplayUpdateHandler: PowerplayUpdateHandler;
+  private sessionsTableHandler: SessionsTableHandler;
 
   constructor() {
     this.client = createClient({
@@ -255,6 +268,10 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
 
   setPowerplayUpdateHandler(handler: PowerplayUpdateHandler) {
     this.powerplayUpdateHandler = handler;
+  }
+
+  setSessionsTableHandler(handler: SessionsTableHandler) {
+    this.sessionsTableHandler = handler;
   }
 
   /** @deprecated Use setMatchUpdateHandler */
@@ -313,6 +330,11 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
       // Per-match powerplay  →  match:{matchId}:powerplay
       await this.client.pSubscribe('match:*:powerplay', (message) => {
         this.handlePowerplayUpdate(message);
+      });
+
+      // Per-match sessions table  →  match:{matchId}:sessions
+      await this.client.pSubscribe('match:*:sessions', (message) => {
+        this.handleSessionsTable(message);
       });
 
       this.logger.log('Subscribed to all Redis channels');
@@ -404,6 +426,18 @@ export class RedisSubscriberService implements OnModuleInit, OnModuleDestroy {
       }
     } catch (error) {
       this.logger.error('Failed to process powerplay update:', error);
+    }
+  }
+
+  private handleSessionsTable(message: string) {
+    try {
+      const payload: SessionsTablePayload = JSON.parse(message);
+      this.logger.debug(`[sessions] matchId=${payload.matchId}`);
+      if (this.sessionsTableHandler) {
+        this.sessionsTableHandler(payload);
+      }
+    } catch (error) {
+      this.logger.error('Failed to process sessions table update:', error);
     }
   }
 

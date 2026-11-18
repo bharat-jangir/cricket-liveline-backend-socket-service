@@ -64,6 +64,11 @@ export class MatchGateway implements OnGatewayConnection, OnGatewayDisconnect, O
       this.emitToMatchRoom(payload.matchId, 'powerplay_update', payload);
     });
 
+    // ── match:*:sessions → sessions_table_update ────────────────────────────────
+    this.redisSubscriber.setSessionsTableHandler((payload) => {
+      this.emitToMatchRoom(payload.matchId, 'sessions_table_update', payload);
+    });
+
     // ── live-match:listing → listing_update ───────────────────────────────
     this.redisSubscriber.setListingUpdateHandler((payload: ListingUpdatePayload) => {
       this.server.to(LISTING_ROOM).emit('listing_update', payload);
@@ -124,9 +129,10 @@ export class MatchGateway implements OnGatewayConnection, OnGatewayDisconnect, O
 
     client.join(`match:${matchId}`);
     this.clientMatchMap.set(client.id, matchId);
-
-    this.logger.log(`Client ${client.id} joined match:${matchId}`);
-    client.emit('match_joined', { matchId, success: true });
+    this.logger.log(`Client ${client.id} joined match room: match:${matchId}`);
+    
+    // Send acknowledgement
+    client.emit('joined_match', { matchId, status: 'success' });
   }
 
   @SubscribeMessage('leave_match')
